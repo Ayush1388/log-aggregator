@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/Ayush1388/log-aggregator/internal/api/models"
+	"github.com/Ayush1388/log-aggregator/internal/models"
 )
 
 type IngestHandler struct {
