@@ -27,20 +27,42 @@ func main() {
 	//capacity of 10,000 means it can hold 10k logs in RAM before the server starts rejecting new requests.
 	logQueue := make(chan models.LogPayload, 10000)
 
-	proc :=processor.NewProcessor(logQueue, 100, 5*time.Second,db)
+	proc := processor.NewProcessor(logQueue, 100, 5*time.Second, db)
 	proc.Start(3)
 
 	//2- initialize the HTTP server and register the handler
-	handler := &api.IngestHandler{
+	ingestHandler := &api.IngestHandler{
 		LogQueue: logQueue,
+	}
+	queryHandler := &api.QueryHandler{
+		DB: db,
 	}
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /ingest", handler.HandleIngest)
+	mux.HandleFunc("POST /ingest", ingestHandler.HandleIngest)
+	mux.HandleFunc("GET /logs", queryHandler.HandleGetLogs)
 
-	server:= &http.Server{
-		Addr: ":8080",
-		Handler: mux,
+	// --- NEW CORS MIDDLEWARE ---
+	// This tells the browser: "It is safe to let the React app fetch this data"
+	corsMiddleware := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+
+			// If it's an OPTIONS preflight request, just say OK and return early
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	// Wrap the mux with our new CORS middleware!
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: corsMiddleware(mux),
 	}
 	go func() {
 		log.Println("Starting server on :8080")
@@ -69,6 +91,4 @@ func main() {
 
 	log.Println("Shutdown complete. All logs safely flushed.")
 
-
-	
 }
