@@ -40,17 +40,23 @@ A lightweight, high-performance alternative to enterprise APM tools (like Datado
         │
         ▼ (HTTP GET /logs)
 [ React Dashboard ]
+```
 
-Quick Start
+## 🚀 Quick Start
+
 Deploy the entire distributed system locally in under 60 seconds.
 
-1. Boot the Stack
-Bash
-git clone [https://github.com/yourusername/log-aggregator.git](https://github.com/yourusername/log-aggregator.git)
+### 1. Boot the Stack
+
+```bash
+git clone [https://github.com/Ayush1388/log-aggregator.git](https://github.com/Ayush1388/log-aggregator.git)
 cd log-aggregator
 docker compose up --build -d
-2. Initialize the Schema
-Bash
+```
+
+### 2. Initialize the Schema
+
+```bash
 docker exec -it log-aggregator-db-1 psql -U postgres -d logaggregator -c "
 CREATE TABLE logs (
   service_id VARCHAR(255), 
@@ -59,14 +65,15 @@ CREATE TABLE logs (
   timestamp TIMESTAMPTZ NOT NULL, 
   metadata JSONB
 );"
-Access the dashboard at http://localhost:3000.
+```
 
-🔌 Node.js SDK Integration
+Access the dashboard at `http://localhost:3000`.
+
+## 🔌 Node.js SDK Integration
 
 A lightweight, non-blocking client SDK is included for seamless integration.
 
-JavaScript
-
+```javascript
 import { Logger } from './sdk/node/logger.js';
 
 const logger = new Logger({
@@ -81,15 +88,12 @@ logger.error("Failed to process payment", {
     cart_total: 129.99,
     retry_attempt: 3
 });
+```
 
 ## 📈 API Reference
-
-*(Ensure this blank line exists)*
 
 | Endpoint | Method | Description | Auth Required |
 |---|---|---|---|
 | `/ingest` | `POST` | Push a single log or metric event | `Bearer Token` |
 | `/logs` | `GET` | Fetch logs with pagination and filters | None |
 | `/health` | `GET` | Service healthcheck for orchestrators | None |
-
-*(Ensure this blank line exists)*
