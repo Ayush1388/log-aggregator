@@ -1,1 +1,4 @@
 @import "tailwindcss";
+
+/* Override OS dark mode to listen to our React class instead */
+@custom-variant dark (&:is(.dark *));
