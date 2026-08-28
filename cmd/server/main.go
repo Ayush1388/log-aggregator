@@ -16,7 +16,10 @@ import (
 )
 
 func main() {
-	dsn := "postgres://postgres:password@localhost:5432/postgres?sslmode=disable"
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		log.Fatal("FATAL: DATABASE_URL environment variable is not set")
+	}
 	db, err := storage.NewStorage(dsn)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
