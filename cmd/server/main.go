@@ -24,6 +24,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
+	// Start automatic 3-month partition retention.
+	maintenanceCtx, maintenanceCancel := context.WithCancel(context.Background())
+	defer maintenanceCancel()
+	go db.StartMaintenanceManager(maintenanceCtx, 3)
+
+	// Run the startup sweep to clear old logs
+
 	// Initialize the buffered channel
 	// we use a buffered channel to allow for some temporary storage of log payloads before they are processed.
 	// it to absorb temporary spikes in traffic.
@@ -67,6 +74,7 @@ func main() {
 		Addr:    ":8080",
 		Handler: corsMiddleware(mux),
 	}
+
 	go func() {
 		log.Println("Starting server on :8080")
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -80,7 +88,7 @@ func main() {
 	<-quit // Blocks here until a signal is received!
 
 	log.Println("\nShutdown signal received. Commencing graceful shutdown...")
-
+	maintenanceCancel()
 	// Stop accepting new HTTP requests
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
