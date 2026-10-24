@@ -129,7 +129,7 @@ export default function Demo({ onFinished, onSeeFits }) {
               key={n}
               onClick={() => start(n)}
               disabled={busy}
-              className="rounded-full bg-[var(--petrol)] text-white dark:text-[#07181e] px-6 py-3 text-sm font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed transition"
+              className="rounded-full bg-[var(--petrol)] text-[var(--on-accent)] px-6 py-3 text-sm font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
               Send {fmt(n)} logs
             </button>
@@ -163,7 +163,7 @@ export default function Demo({ onFinished, onSeeFits }) {
             </dl>
             {result.error && <p className="mt-4 text-sm text-[var(--lvl-warn)]">{result.error}</p>}
             <button onClick={onSeeFits}
-              className="mt-8 rounded-full border border-[var(--ink)] px-5 py-2.5 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--surface)] transition">
+              className="mt-8 rounded-full border border-[var(--ink)] px-5 py-2.5 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--active-bg)] hover:text-[var(--active-fg)] transition">
               See where this fits
             </button>
           </div>
@@ -181,7 +181,7 @@ export default function Demo({ onFinished, onSeeFits }) {
           persisted={phase === 'done' ? result.persisted : persistedShown}
           target={target}
         />
-        <p className="mt-3 text-xs text-[#7fa7b2] max-w-[60ch]">
+        <p className="mt-3 text-xs text-[var(--s-mid)] max-w-[60ch]">
           Counts come from the server. The animation is slowed so you can follow it, and it never shows more than was processed.
         </p>
       </section>

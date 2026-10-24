@@ -40,7 +40,7 @@ export default function App() {
             {TABS.map(([id, label]) => (
               <button key={id} onClick={() => setTab(id)} aria-current={tab === id ? 'page' : undefined}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                  tab === id ? 'bg-[var(--ink)] text-[var(--surface)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'
+                  tab === id ? 'bg-[var(--active-bg)] text-[var(--active-fg)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'
                 }`}>
                 {label}
               </button>

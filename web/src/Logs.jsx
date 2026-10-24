@@ -75,13 +75,13 @@ export default function Logs({ refreshKey }) {
         <div className="flex flex-col gap-1.5">
           <button onClick={() => { setFilterLevel(''); setPage(1); }}
             aria-pressed={filterLevel === ''}
-            className={`flex justify-between rounded-xl px-3 py-2 text-sm text-left transition ${filterLevel === '' ? 'bg-[var(--ink)] text-[var(--surface)]' : 'hover:bg-[var(--bg)]'}`}>
+            className={`flex justify-between rounded-xl px-3 py-2 text-sm text-left transition ${filterLevel === '' ? 'bg-[var(--active-bg)] text-[var(--active-fg)]' : 'hover:bg-[var(--bg)]'}`}>
             <span>All levels</span><span className="font-mono">{stats.total.toLocaleString()}</span>
           </button>
           {LEVELS.map((l) => (
             <button key={l} onClick={() => { setFilterLevel(l); setPage(1); }}
               aria-pressed={filterLevel === l}
-              className={`flex justify-between items-center rounded-xl px-3 py-2 text-sm text-left transition ${filterLevel === l ? 'bg-[var(--ink)] text-[var(--surface)]' : 'hover:bg-[var(--bg)]'}`}>
+              className={`flex justify-between items-center rounded-xl px-3 py-2 text-sm text-left transition ${filterLevel === l ? 'bg-[var(--active-bg)] text-[var(--active-fg)]' : 'hover:bg-[var(--bg)]'}`}>
               <span className="flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full" style={{ background: levelColor(l) }} />{l}
               </span>

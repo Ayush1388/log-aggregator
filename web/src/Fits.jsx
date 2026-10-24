@@ -22,12 +22,12 @@ function CodeBlock({ code, label }) {
   return (
     <div className="rounded-2xl bg-[var(--stage)] border border-[var(--stage-line)] overflow-hidden">
       <div className="flex items-center justify-between px-4 py-2 border-b border-[var(--stage-line)]">
-        <span className="text-xs text-[#9fc0c9] font-mono">{label}</span>
-        <button onClick={copy} className="text-xs text-[#cfe3e8] hover:text-white rounded-full border border-[var(--stage-line)] px-3 py-1 transition">
+        <span className="text-xs text-[var(--s-mid)] font-mono">{label}</span>
+        <button onClick={copy} className="text-xs text-[var(--s-hi)] hover:text-white rounded-full border border-[var(--stage-line)] px-3 py-1 transition">
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
-      <pre className="p-4 overflow-x-auto text-[13px] leading-relaxed font-mono text-[#e6f1f4]"><code>{code}</code></pre>
+      <pre className="p-4 overflow-x-auto text-[13px] leading-relaxed font-mono text-[var(--s-hi)]"><code>{code}</code></pre>
     </div>
   );
 }
@@ -35,7 +35,7 @@ function CodeBlock({ code, label }) {
 function Step({ n, title, children }) {
   return (
     <li className="relative pl-12 pb-10 last:pb-0 border-l border-[var(--line)] ml-4">
-      <span className="absolute -left-4 top-0 h-8 w-8 rounded-full bg-[var(--ink)] text-[var(--surface)] grid place-items-center text-sm font-semibold">{n}</span>
+      <span className="absolute -left-4 top-0 h-8 w-8 rounded-full bg-[var(--active-bg)] text-[var(--active-fg)] grid place-items-center text-sm font-semibold">{n}</span>
       <h3 className="font-display text-xl font-semibold leading-8">{title}</h3>
       <div className="mt-2 space-y-4 text-[15px] leading-relaxed text-[var(--muted)]">{children}</div>
     </li>
@@ -114,7 +114,7 @@ logger.error("Payment failed", { user_id: 88471, retry: 3 });`;
             <div className="flex gap-1 rounded-full bg-[var(--bg)] p-1 w-fit" role="tablist" aria-label="Language">
               {[['node', 'Node.js'], ['http', 'Any language (HTTP)']].map(([id, label]) => (
                 <button key={id} role="tab" aria-selected={lang === id} onClick={() => setLang(id)}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${lang === id ? 'bg-[var(--ink)] text-[var(--surface)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${lang === id ? 'bg-[var(--active-bg)] text-[var(--active-fg)]' : 'text-[var(--muted)] hover:text-[var(--ink)]'}`}>
                   {label}
                 </button>
               ))}
