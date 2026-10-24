@@ -12,7 +12,7 @@ jobs:
       - name: Ping services
         env:
           PING_URLS: |
-            https://YOUR-SERVICE.onrender.com/health
+            https://log-aggregator-pml5.onrender.com/health
         run: |
           for url in $PING_URLS; do
             code=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "$url" || echo "fail")
