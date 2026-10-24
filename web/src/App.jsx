@@ -11,7 +11,22 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState('live');
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => {
+    try {
+      return localStorage.getItem('theme') !== 'light'; // dark unless the user chose light
+    } catch {
+      return true;
+    }
+  });
+  const toggleTheme = () =>
+    setIsDark((v) => {
+      try {
+        localStorage.setItem('theme', v ? 'light' : 'dark');
+      } catch {
+        /* storage unavailable: the choice just won't persist */
+      }
+      return !v;
+    });
   const [refreshKey, setRefreshKey] = useState(0);
   const onFinished = useCallback(() => setRefreshKey((k) => k + 1), []);
 
@@ -32,7 +47,7 @@ export default function App() {
             ))}
           </nav>
 
-          <button onClick={() => setIsDark((v) => !v)} aria-pressed={isDark}
+          <button onClick={toggleTheme} aria-pressed={isDark}
             className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-1.5 text-sm font-medium hover:border-[var(--ink)] transition">
             {isDark ? 'Light mode' : 'Dark mode'}
           </button>

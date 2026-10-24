@@ -32,19 +32,19 @@
 }
 
 .dark {
-  --bg: #0a1419;
-  --surface: #0f1d24;
-  --raised: #13252e;
-  --ink: #e8eef1;
-  --muted: #8ba0ab;
-  --line: #22373f;
+  --bg: #0c1317;
+  --surface: #121d23;
+  --raised: #17262e;
+  --ink: #dde7eb;
+  --muted: #8da1ab;
+  --line: #243842;
   --petrol: #5fb0c4;
-  --stage: #07181e;
-  --stage-line: #1d4954;
+  --stage: #0a2229;
+  --stage-line: #1f4753;
   --lvl-error: #e8836e;
   --lvl-warn: #e3b252;
   --lvl-info: #6fb4d4;
-  --lvl-debug: #8ba0ab;
+  --lvl-debug: #8da1ab;
 }
 
 html, body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); }
