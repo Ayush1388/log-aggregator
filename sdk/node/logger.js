@@ -38,4 +38,5 @@ export class Logger {
   info(message, metadata) { this._send("INFO", message, metadata); }
   warn(message, metadata) { this._send("WARN", message, metadata); }
   error(message, metadata) { this._send("ERROR", message, metadata); }
+  debug(message, metadata) { this._send("DEBUG", message, metadata); }
 }

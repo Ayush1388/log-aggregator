@@ -1,16 +1,8 @@
 {
-  "name": "node",
+  "name": "log-aggregator-sdk",
   "version": "1.0.0",
-  "description": "",
+  "description": "Tiny non-blocking client for the log-aggregator /ingest endpoint",
   "main": "logger.js",
   "type": "module",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "react-json-view": "^1.21.3"
-  }
+  "license": "ISC"
 }
