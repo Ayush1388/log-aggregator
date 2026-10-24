@@ -116,6 +116,27 @@ Backend:
 http://localhost:8080
 ```
 
+## 🎬 Live Demo Mode
+
+The dashboard opens with **Send 10K / 15K / 20K logs** buttons. Clicking one makes the server fire that many real HTTP requests (100 concurrent clients) at its own `/ingest` endpoint, then the UI animates the four pipeline stages (fire requests, buffer in memory, batch by 100, bulk insert) from live counters and shows measured throughput, logs lost, DB round trips and backpressure hits.
+
+| Endpoint | Method | Description |
+| --- | --- | --- |
+| `/demo/run?count=10000` | `POST` | Start a run (10000, 15000 or 20000 only; one at a time) |
+| `/demo/status` | `GET` | Live progress and final result |
+| `/demo/clear` | `POST` | Delete demo-generated logs |
+
+Set `DEMO_ENABLED=false` to turn these endpoints off.
+
+## ☁️ Deployment
+
+The backend is a long-running Go process (in-memory queue, worker goroutines, a 5s flush ticker), so it needs a real server, not Vercel serverless functions. Two options:
+
+* **Single service (simplest):** deploy `render.yaml` as a Render Blueprint. It builds `Dockerfile.render` (Go API serving the built React app via `STATIC_DIR`) and provisions Postgres. The schema is created on startup.
+* **Split:** backend on Render/Fly/Railway, frontend on Vercel with root directory `web` and env `VITE_API_URL=https://<your-backend>`.
+
+Other env vars: `PORT` (default 8080), `INGEST_TOKEN`, `STATIC_DIR`.
+
 ## 🔌 Node.js SDK Integration
 
 A lightweight, non-blocking client SDK is included for seamless integration.

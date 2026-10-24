@@ -10,6 +10,7 @@ import (
 // months have partitions ready to receive logs.
 func (s *Storage) EnsurePartitions() error {
 	now := time.Now().UTC()
+	var firstErr error
 
 	for i := 0; i < 3; i++ {
 		target := now.AddDate(0, i, 0)
@@ -40,16 +41,20 @@ func (s *Storage) EnsurePartitions() error {
 			end.Format(time.RFC3339),
 		)
 
+		// Keep going on failure so one bad month does not block the others.
 		if _, err := s.db.Exec(query); err != nil {
-			return fmt.Errorf(
-				"failed to create partition %s: %w",
-				tableName,
-				err,
-			)
+			if firstErr == nil {
+				firstErr = fmt.Errorf(
+					"failed to create partition %s: %w",
+					tableName,
+					err,
+				)
+			}
+			continue
 		}
 
 		log.Printf("Partition ready: %s", tableName)
 	}
 
-	return nil
+	return firstErr
 }

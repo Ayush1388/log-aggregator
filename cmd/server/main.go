@@ -6,10 +6,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
 	"github.com/Ayush1388/log-aggregator/internal/api"
+	"github.com/Ayush1388/log-aggregator/internal/demo"
 	"github.com/Ayush1388/log-aggregator/internal/models"
 	"github.com/Ayush1388/log-aggregator/internal/processor"
 	"github.com/Ayush1388/log-aggregator/internal/storage"
@@ -48,9 +50,41 @@ func main() {
 		DB: db,
 	}
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	token := os.Getenv("INGEST_TOKEN")
+	if token == "" {
+		token = "my-secret-dev-token"
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /ingest", ingestHandler.HandleIngest)
 	mux.HandleFunc("GET /logs", queryHandler.HandleGetLogs)
+	mux.HandleFunc("GET /health", api.HandleHealth)
+
+	// Dashboard load demo: the server fires real HTTP requests at its own
+	// /ingest endpoint so the pipeline can be shown live.
+	if os.Getenv("DEMO_ENABLED") != "false" {
+		runner := demo.New(
+			"http://127.0.0.1:"+port+"/ingest",
+			token,
+			proc,
+			func() int { return len(logQueue) },
+			cap(logQueue),
+		)
+		demoHandler := &api.DemoHandler{Runner: runner, DB: db}
+		mux.HandleFunc("POST /demo/run", demoHandler.HandleStart)
+		mux.HandleFunc("GET /demo/status", demoHandler.HandleStatus)
+		mux.HandleFunc("POST /demo/clear", demoHandler.HandleClear)
+	}
+
+	// Optionally serve the built React dashboard from the same process,
+	// which lets the whole app deploy as a single service.
+	if dir := os.Getenv("STATIC_DIR"); dir != "" {
+		mux.Handle("/", spaHandler(dir))
+	}
 
 	// --- NEW CORS MIDDLEWARE ---
 	// This tells the browser: "It is safe to let the React app fetch this data"
@@ -58,7 +92,7 @@ func main() {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
 			// If it's an OPTIONS preflight request, just say OK and return early
 			if r.Method == "OPTIONS" {
@@ -71,12 +105,12 @@ func main() {
 
 	// Wrap the mux with our new CORS middleware!
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: corsMiddleware(mux),
 	}
 
 	go func() {
-		log.Println("Starting server on :8080")
+		log.Println("Starting server on :" + port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Server failed to start: %v", err)
 		}
@@ -102,4 +136,17 @@ func main() {
 
 	log.Println("Shutdown complete. All logs safely flushed.")
 
+}
+
+// spaHandler serves static files and falls back to index.html for unknown paths.
+func spaHandler(dir string) http.Handler {
+	files := http.FileServer(http.Dir(dir))
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
+		if info, err := os.Stat(path); err != nil || info.IsDir() && r.URL.Path != "/" {
+			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
+			return
+		}
+		files.ServeHTTP(w, r)
+	})
 }

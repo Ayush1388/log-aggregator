@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Ayush1388/log-aggregator/internal/models"
@@ -17,6 +18,30 @@ type Processor struct {
 	batchSize     int
 	flushInterval time.Duration
 	storage       *storage.Storage
+
+	flushedLogs    atomic.Int64
+	flushedBatches atomic.Int64
+	droppedLogs    atomic.Int64
+}
+
+// maxPendingBatches caps how many batches a worker keeps in memory while the
+// database is failing, so a long outage cannot grow memory without bound.
+const maxPendingBatches = 50
+
+// Stats is a point-in-time snapshot of the processor counters.
+type Stats struct {
+	FlushedLogs    int64 `json:"flushed_logs"`
+	FlushedBatches int64 `json:"flushed_batches"`
+	DroppedLogs    int64 `json:"dropped_logs"`
+}
+
+// Stats returns the number of logs persisted, batches written and logs dropped.
+func (p *Processor) Stats() Stats {
+	return Stats{
+		FlushedLogs:    p.flushedLogs.Load(),
+		FlushedBatches: p.flushedBatches.Load(),
+		DroppedLogs:    p.droppedLogs.Load(),
+	}
 }
 
 //NewProcessor initializes the processor with configurable rules.
@@ -77,9 +102,12 @@ func (p *Processor) worker(workerID int) {
 			if len(batch) >= p.batchSize {
 				if err := p.flushToDB(workerID, batch); err == nil {
 					batch = batch[:0]
+				} else if len(batch) >= p.batchSize*maxPendingBatches {
+					p.droppedLogs.Add(int64(len(batch)))
+					log.Printf("[Worker %d] Dropping %d logs after repeated flush failures", workerID, len(batch))
+					batch = batch[:0]
 				}
 			}
-		case <-ticker.C:
 		case <-ticker.C:
 			if len(batch) > 0 {
 				if err := p.flushToDB(workerID, batch); err == nil {
@@ -99,6 +127,8 @@ func (p *Processor) flushToDB(workerID int, batch []models.LogPayload) error {
 	for attempt := 1; attempt <= maxRetries; attempt++ {
 		err := p.storage.BulkInsert(batch)
 		if err == nil {
+			p.flushedLogs.Add(int64(len(batch)))
+			p.flushedBatches.Add(1)
 			log.Printf(
 				"[Worker %d] Successfully flushed %d logs to PostgreSQL.\n",
 				workerID,

@@ -1,14 +1,25 @@
 package api
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/Ayush1388/log-aggregator/internal/models"
 	"github.com/Ayush1388/log-aggregator/internal/storage"
 )
+
+const maxIngestBodyBytes = 1 << 20 // 1 MiB
+
+// HandleHealth is a liveness probe for orchestrators.
+func HandleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"status":"ok"}`))
+}
 
 type IngestHandler struct {
 	// LogQueue is a send-only channel. The HTTP handler only produces data.
@@ -22,7 +33,7 @@ func (h *IngestHandler) HandleIngest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	authHeader := r.Header.Get("Authorization")
-	if authHeader != "Bearer "+expectedToken {
+	if subtle.ConstantTimeCompare([]byte(authHeader), []byte("Bearer "+expectedToken)) != 1 {
 		http.Error(
 			w,
 			`{"error":"unauthorized: invalid token"}`,
@@ -33,9 +44,23 @@ func (h *IngestHandler) HandleIngest(w http.ResponseWriter, r *http.Request) {
 
 	var payload models.LogPayload
 
+	r.Body = http.MaxBytesReader(w, r.Body, maxIngestBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
 		return
+	}
+
+	payload.Level = strings.ToUpper(strings.TrimSpace(payload.Level))
+	if payload.Level == "" {
+		payload.Level = "INFO"
+	}
+	if payload.ServiceID == "" {
+		payload.ServiceID = "unknown-service"
+	}
+	// A zero timestamp would land in the default partition and break
+	// later partition creation for that month.
+	if payload.Timestamp.IsZero() {
+		payload.Timestamp = time.Now().UTC()
 	}
 
 	select {
@@ -78,6 +103,7 @@ func (h *QueryHandler) HandleGetLogs(w http.ResponseWriter, r *http.Request) {
 
 		limit = parsed
 	}
+	level = strings.ToUpper(level)
 
 	offset := 0
 	if value := r.URL.Query().Get("offset"); value != "" {

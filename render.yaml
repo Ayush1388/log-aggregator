@@ -1,0 +1,17 @@
+# Render Blueprint: one Docker web service (Go API + built React dashboard) + Postgres.
+services:
+  - type: web
+    name: log-aggregator
+    runtime: docker
+    dockerfilePath: ./Dockerfile.render
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: log-aggregator-db
+          property: connectionString
+      - key: INGEST_TOKEN
+        generateValue: true
+databases:
+  - name: log-aggregator-db
+    plan: free

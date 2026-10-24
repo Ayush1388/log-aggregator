@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import Demo from './Demo';
+import { API_BASE_URL } from './api';
 
-const API_BASE_URL = 'http://localhost:8080';
 const PAGE_SIZE = 50;
 
 const getBadgeStyles = (level) => {
@@ -144,8 +145,8 @@ export default function App() {
       <div className="min-h-screen bg-[#faf9f6] dark:bg-[#121212] text-zinc-800 dark:text-zinc-300 font-sans transition-colors duration-200">
 
         {/* Header */}
-        <header className="px-8 py-6">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
+        <header className="px-4 sm:px-8 py-6">
+          <div className="max-w-7xl mx-auto flex flex-wrap gap-4 items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="h-2 w-2 rounded-full bg-zinc-400 dark:bg-zinc-600"></div>
 
@@ -249,10 +250,11 @@ export default function App() {
           </div>
         </header>
 
-        <main className="max-w-7xl mx-auto px-8 pb-12">
+        <main className="max-w-7xl mx-auto px-4 sm:px-8 pb-12">
+          <Demo onFinished={fetchLogs} />
 
           {/* Global Summary Cards */}
-          <div className="grid grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mb-8">
             <div className="p-5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-[#18181b] shadow-sm">
               <div className="text-xs font-semibold tracking-wider text-zinc-500 dark:text-zinc-500 mb-2">
                 TOTAL EVENTS

@@ -2,3 +2,13 @@
 
 /* Override OS dark mode to listen to our React class instead */
 @custom-variant dark (&:is(.dark *));
+
+@keyframes flow {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(200%); }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}

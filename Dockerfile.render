@@ -1,0 +1,22 @@
+# Single-image build: React dashboard served by the Go server.
+FROM node:22-alpine AS web
+WORKDIR /web
+COPY web/package*.json ./
+RUN npm ci --legacy-peer-deps
+COPY web/ .
+ENV VITE_API_URL=""
+RUN npm run build
+
+FROM golang:alpine AS api
+WORKDIR /app
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o log-server ./cmd/server
+
+FROM alpine:latest
+WORKDIR /app
+COPY --from=api /app/log-server .
+COPY --from=web /web/dist ./static
+ENV STATIC_DIR=/app/static
+CMD ["./log-server"]
