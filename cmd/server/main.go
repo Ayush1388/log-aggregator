@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -144,8 +145,16 @@ func spaHandler(dir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := filepath.Join(dir, filepath.Clean("/"+r.URL.Path))
 		if info, err := os.Stat(path); err != nil || info.IsDir() && r.URL.Path != "/" {
+			w.Header().Set("Cache-Control", "no-cache")
 			http.ServeFile(w, r, filepath.Join(dir, "index.html"))
 			return
+		}
+		// index.html must always be revalidated so a new deploy shows up at once;
+		// hashed files under /assets never change, so they can be cached for good.
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Cache-Control", "no-cache")
+		} else if strings.HasPrefix(r.URL.Path, "/assets/") {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 		files.ServeHTTP(w, r)
 	})
