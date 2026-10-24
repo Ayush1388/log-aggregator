@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/Ayush1388/log-aggregator/internal/models"
 	_ "github.com/lib/pq"
@@ -35,6 +36,8 @@ func NewStorage(dsn string) (*Storage, error) {
 
 	db.SetMaxOpenConns(25)
 	db.SetMaxIdleConns(25)
+	// Serverless Postgres (e.g. Neon) closes idle connections; retire ours first.
+	db.SetConnMaxIdleTime(4 * time.Minute)
 
 	log.Println("Connected to the database successfully")
 	return &Storage{db: db}, nil

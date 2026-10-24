@@ -1,0 +1,20 @@
+# Pings free-tier services every ~5 minutes so they don't go to sleep.
+# Add one URL per line to PING_URLS below.
+name: keep-awake
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping services
+        env:
+          PING_URLS: |
+            https://YOUR-SERVICE.onrender.com/health
+        run: |
+          for url in $PING_URLS; do
+            code=$(curl -s -o /dev/null -m 60 -w "%{http_code}" "$url" || echo "fail")
+            echo "$url -> $code"
+          done
