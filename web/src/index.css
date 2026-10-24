@@ -1,14 +1,76 @@
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource/ibm-plex-sans/400.css";
+@import "@fontsource/ibm-plex-sans/500.css";
+@import "@fontsource/ibm-plex-sans/600.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
 @import "tailwindcss";
 
-/* Override OS dark mode to listen to our React class instead */
 @custom-variant dark (&:is(.dark *));
 
-@keyframes flow {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(200%); }
+@theme {
+  --font-display: "Bricolage Grotesque Variable", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+:root {
+  --bg: #edf0f2;
+  --surface: #fafbfc;
+  --raised: #ffffff;
+  --ink: #0d1b24;
+  --muted: #5b6b76;
+  --line: #d5dce1;
+  --petrol: #0f4c5c;
+  --stage: #0b2a33;
+  --stage-line: #1d4954;
+  --signal: #f2a93b;
+  --lvl-error: #b4402a;
+  --lvl-warn: #a8740f;
+  --lvl-info: #2c6a8a;
+  --lvl-debug: #5b6b76;
+}
+
+.dark {
+  --bg: #0a1419;
+  --surface: #0f1d24;
+  --raised: #13252e;
+  --ink: #e8eef1;
+  --muted: #8ba0ab;
+  --line: #22373f;
+  --petrol: #5fb0c4;
+  --stage: #07181e;
+  --stage-line: #1d4954;
+  --lvl-error: #e8836e;
+  --lvl-warn: #e3b252;
+  --lvl-info: #6fb4d4;
+  --lvl-debug: #8ba0ab;
+}
+
+html, body { background: var(--bg); color: var(--ink); font-family: var(--font-sans); }
+body { margin: 0; }
+
+:focus-visible { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+/* Packets travelling along an SVG path. Duration/delay come from inline vars. */
+@keyframes travel {
+  0%   { offset-distance: 0%;   opacity: 0; }
+  10%  { opacity: 1; }
+  90%  { opacity: 1; }
+  100% { offset-distance: 100%; opacity: 0; }
+}
+.packet {
+  offset-rotate: 0deg;
+  animation: travel var(--dur, 1.2s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.5s ease-out both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .packet { animation: none; opacity: 1; offset-distance: 50%; }
+  .rise { animation: none; }
 }

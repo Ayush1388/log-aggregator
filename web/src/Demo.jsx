@@ -1,30 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { API_BASE_URL } from './api';
+import Pipeline from './Pipeline';
 
 const SIZES = [10000, 15000, 20000];
 const fmt = (n) => Math.round(n).toLocaleString();
 const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
+const MIN_MS = 4500; // pace the visual; the real run can finish in under a second
 
-// Four plain-language steps, shown as the pipeline.
-const STEPS = [
-  { key: 'send', title: 'Fire requests', sub: '100 parallel clients', icon: '⚡' },
-  { key: 'queue', title: 'Buffer in memory', sub: 'Go channel, 10k slots', icon: '📥' },
-  { key: 'batch', title: 'Batch by 100', sub: '3 worker goroutines', icon: '📦' },
-  { key: 'store', title: 'Bulk insert', sub: 'PostgreSQL partitions', icon: '🗄️' },
-];
-
-const USE_CASES = [
-  ['Central logging for microservices', 'Every service POSTs JSON to one endpoint instead of running its own log stack.'],
-  ['Traffic-spike absorption', 'The bounded queue soaks up bursts; when full it returns 503 so clients back off instead of crashing the server.'],
-  ['Cheap, self-hosted observability', 'JSONB metadata + level/service filters give a Datadog-style search without the bill.'],
-  ['Automatic retention', 'Monthly partitions are dropped after 3 months, so old data is deleted instantly, not row by row.'],
-];
-
-export default function Demo({ onFinished }) {
+export default function Demo({ onFinished, onSeeFits }) {
   const [status, setStatus] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [clock, setClock] = useState(0); // 0..1 animation progress
+  const [clock, setClock] = useState(0);
   const [result, setResult] = useState(null);
   const startedAt = useRef(0);
   const statusRef = useRef(null);
@@ -32,8 +19,6 @@ export default function Demo({ onFinished }) {
   useEffect(() => {
     statusRef.current = status;
   }, [status]);
-
-  const running = busy || status?.state === 'running' || status?.state === 'draining';
 
   const start = async (count) => {
     setError('');
@@ -44,12 +29,13 @@ export default function Demo({ onFinished }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
       startedAt.current = performance.now();
+      setClock(0);
       setStatus(data);
     } catch (e) {
       setBusy(false);
       setError(
         e instanceof TypeError
-          ? 'Cannot reach the backend. If it is hosted on a free tier it may be waking up, so retry in ~30s.'
+          ? 'The server is not responding. On the free tier it can take about 30 seconds to wake up. Try again shortly.'
           : e.message
       );
     }
@@ -61,20 +47,19 @@ export default function Demo({ onFinished }) {
       await fetch(`${API_BASE_URL}/demo/clear`, { method: 'POST' });
       setResult(null);
       setStatus(null);
+      setClock(0);
       onFinished?.();
     } catch {
-      setError('Could not clear demo logs.');
+      setError('Could not clear the demo logs. Check the connection and try again.');
     }
   };
 
-  // Poll real progress from the backend while a run is active.
   useEffect(() => {
     if (!busy) return undefined;
     const id = setInterval(async () => {
       try {
         const res = await fetch(`${API_BASE_URL}/demo/status`);
-        const data = await res.json();
-        setStatus(data);
+        setStatus(await res.json());
       } catch {
         /* keep polling */
       }
@@ -82,9 +67,6 @@ export default function Demo({ onFinished }) {
     return () => clearInterval(id);
   }, [busy]);
 
-  // The real run can finish in under a second, so pace the visual to at least
-  // MIN_MS. All numbers shown are capped by what the backend actually reported.
-  const MIN_MS = 4500;
   useEffect(() => {
     if (!busy) return undefined;
     let raf;
@@ -92,9 +74,7 @@ export default function Demo({ onFinished }) {
       const elapsed = performance.now() - startedAt.current;
       const real = statusRef.current;
       const realDone = real?.state === 'done';
-      // Never run ahead of reality: hold at 0.9 until the backend is done.
-      const cap = realDone ? 1 : 0.9;
-      setClock(clamp(elapsed / MIN_MS, 0, cap));
+      setClock(clamp(elapsed / MIN_MS, 0, realDone ? 1 : 0.9)); // never ahead of the backend
       if (realDone && elapsed >= MIN_MS) {
         setBusy(false);
         setResult(real);
@@ -107,191 +87,114 @@ export default function Demo({ onFinished }) {
     return () => cancelAnimationFrame(raf);
   }, [busy, onFinished]);
 
-  const target = status?.target || 0;
   const real = status || {};
-  // Each stage starts a little after the previous one.
-  const sentFrac = clamp(clock / 0.55);
-  const queueFrac = clamp((clock - 0.05) / 0.55);
-  const storeFrac = clamp((clock - 0.3) / 0.7);
-  const sentShown = Math.min(real.sent ?? 0, target * sentFrac);
-  const persistedShown = Math.min(real.persisted ?? 0, target * storeFrac);
-  const inFlight = clamp(sentShown - persistedShown, 0, real.queue_cap || 10000);
-  const queueFill = target ? clamp(inFlight / (real.queue_cap || 10000)) : 0;
+  const target = real.target || 0;
+  const queueCap = real.queue_cap || 10000;
+  const sentShown = Math.min(real.sent ?? 0, target * clamp(clock / 0.55));
+  const persistedShown = Math.min(real.persisted ?? 0, target * clamp((clock - 0.3) / 0.7));
+  const inFlight = clamp(sentShown - persistedShown, 0, queueCap);
   const batchesShown = Math.floor(persistedShown / 100);
 
-  const stage = !running ? -1 : storeFrac > 0 ? 3 : queueFrac > 0.15 ? 2 : sentFrac > 0 ? 1 : 0;
-  const activeStage = running ? Math.max(stage, 0) : -1;
+  let phase = 'idle';
+  if (busy) phase = persistedShown > 0 ? 'storing' : 'sending';
+  else if (result) phase = 'done';
 
-  const resetIdle = !running && !result;
+  const headline = result
+    ? `${fmt(result.persisted)} of ${fmt(result.target)} stored`
+    : busy
+      ? `${fmt(persistedShown)} stored so far`
+      : 'Every log in. None lost.';
 
-  const dbCallsSaved = result ? Math.round(result.accepted / Math.max(result.batches, 1)) : 0;
+  const sub = result
+    ? 'Measured by the server for this run, including the database writes.'
+    : busy
+      ? phase === 'sending'
+        ? 'Requests are arriving and filling the queue.'
+        : 'Workers are writing batches to PostgreSQL.'
+      : 'A Go pipeline that queues, batches and stores logs in PostgreSQL. Pick a size to run a real load test against this server.';
 
   return (
-    <section className="mb-10 rounded-2xl border border-zinc-800 bg-zinc-950 text-zinc-200 shadow-xl overflow-hidden">
-      <div className="px-6 sm:px-8 pt-8 pb-6 border-b border-zinc-800/80">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <div className="text-xs font-semibold tracking-[0.2em] text-emerald-400 mb-2">LIVE LOAD TEST</div>
-            <h2 className="text-2xl sm:text-3xl font-serif text-white tracking-tight">
-              Watch it swallow thousands of logs
-            </h2>
-            <p className="text-sm text-zinc-400 mt-2">
-              A Go ingestion pipeline that accepts logs fast, batches them, and stores them safely.
-              Pick a size: the server sends real HTTP requests to its own <code className="text-zinc-300">/ingest</code> endpoint.
-            </p>
-          </div>
+    <div className="grid lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)] gap-6 lg:gap-8 items-start">
+      {/* Left: story + controls + result */}
+      <section className="rounded-3xl bg-[var(--surface)] border border-[var(--line)] p-7 sm:p-9">
+        <h1 className="font-display text-4xl sm:text-5xl font-semibold tracking-tight leading-[1.05] text-[var(--ink)] text-balance"
+          style={{ fontVariationSettings: '"wdth" 90' }}>
+          {headline}
+        </h1>
+        <p className="mt-4 text-[15px] leading-relaxed text-[var(--muted)] max-w-[44ch]">{sub}</p>
 
-          <div className="flex flex-wrap gap-2">
-            {SIZES.map((n) => (
-              <button
-                key={n}
-                onClick={() => start(n)}
-                disabled={running}
-                className="px-5 py-3 rounded-xl bg-emerald-500 text-zinc-950 font-semibold text-sm hover:bg-emerald-400 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition"
-              >
-                Send {n / 1000}K logs
-              </button>
-            ))}
+        <div className="mt-8 flex flex-wrap gap-2.5" role="group" aria-label="Choose how many logs to send">
+          {SIZES.map((n) => (
             <button
-              onClick={clear}
-              disabled={running}
-              className="px-4 py-3 rounded-xl border border-zinc-700 text-zinc-400 text-sm hover:text-white hover:border-zinc-500 disabled:opacity-40 transition"
+              key={n}
+              onClick={() => start(n)}
+              disabled={busy}
+              className="rounded-full bg-[var(--petrol)] text-white dark:text-[#07181e] px-6 py-3 text-sm font-semibold hover:brightness-110 active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed transition"
             >
-              Clear demo data
+              Send {fmt(n)} logs
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={clear}
+          disabled={busy}
+          className="mt-3 text-sm text-[var(--muted)] underline underline-offset-4 hover:text-[var(--ink)] disabled:opacity-40"
+        >
+          Clear demo logs
+        </button>
+
+        {error && (
+          <p role="alert" className="mt-5 rounded-xl border border-[var(--lvl-error)]/40 bg-[var(--lvl-error)]/10 px-4 py-3 text-sm text-[var(--lvl-error)]">
+            {error}
+          </p>
+        )}
+
+        {result && !busy && (
+          <div className="rise mt-9 pt-7 border-t border-[var(--line)]">
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-6">
+              <Metric label="Logs per second" value={fmt(result.ingest_rps)}
+                note={`${fmt(result.accepted)} accepted in ${(result.ingest_ms / 1000).toFixed(2)} s`} />
+              <Metric label="Logs lost" value={fmt(result.target - result.persisted)}
+                note="Every accepted log reached PostgreSQL" />
+              <Metric label="Database writes" value={fmt(result.batches)}
+                note={`instead of ${fmt(result.accepted)} single inserts`} />
+              <Metric label="Queue pushbacks" value={fmt(result.backpressure)}
+                note={result.backpressure ? 'Full queue returned 503, clients retried' : 'The queue never filled up'} />
+            </dl>
+            {result.error && <p className="mt-4 text-sm text-[var(--lvl-warn)]">{result.error}</p>}
+            <button onClick={onSeeFits}
+              className="mt-8 rounded-full border border-[var(--ink)] px-5 py-2.5 text-sm font-semibold text-[var(--ink)] hover:bg-[var(--ink)] hover:text-[var(--surface)] transition">
+              See where this fits
             </button>
           </div>
-        </div>
-        {error && (
-          <div role="alert" className="mt-4 rounded-lg border border-red-900/60 bg-red-500/10 px-4 py-3 text-sm text-red-300">
-            {error}
-          </div>
         )}
-      </div>
+      </section>
 
-      {/* Pipeline animation */}
-      <div className="px-6 sm:px-8 py-8">
-        <ol className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] items-stretch gap-3 md:gap-0">
-          {STEPS.map((s, i) => {
-            const lit = activeStage === i || (result && !running);
-            const done = running ? i < activeStage : !!result;
-            return (
-              <FragmentWithArrow key={s.key} showArrow={i < STEPS.length - 1} flowing={running && activeStage > i - 0.01 && activeStage >= i}>
-                <li
-                  className={`relative rounded-xl border px-4 py-4 transition-all duration-500 ${
-                    lit
-                      ? 'border-emerald-500/70 bg-emerald-500/10 shadow-[0_0_30px_-8px_rgba(16,185,129,0.6)]'
-                      : done
-                        ? 'border-emerald-900 bg-zinc-900'
-                        : 'border-zinc-800 bg-zinc-900/60'
-                  }`}
-                >
-                  <div className="flex items-center gap-2 text-lg">
-                    <span className={lit && running ? 'animate-bounce' : ''}>{s.icon}</span>
-                    <span className="text-xs font-mono text-zinc-500">0{i + 1}</span>
-                  </div>
-                  <div className="mt-2 font-semibold text-white text-sm">{s.title}</div>
-                  <div className="text-xs text-zinc-400">{s.sub}</div>
-
-                  <div className="mt-3 font-mono text-lg text-emerald-300 min-h-[1.75rem]">
-                    {i === 0 && (resetIdle ? '—' : `${fmt(sentShown)}`)}
-                    {i === 1 && (resetIdle ? '—' : `${fmt(inFlight)} waiting`)}
-                    {i === 2 && (resetIdle ? '—' : `${fmt(batchesShown)} batches`)}
-                    {i === 3 && (resetIdle ? '—' : `${fmt(persistedShown)} saved`)}
-                  </div>
-                  {i === 1 && (
-                    <div className="mt-2 h-2 rounded-full bg-zinc-800 overflow-hidden" aria-label="Queue fill">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-amber-400 transition-[width] duration-150"
-                        style={{ width: `${queueFill * 100}%` }}
-                      />
-                    </div>
-                  )}
-                </li>
-              </FragmentWithArrow>
-            );
-          })}
-        </ol>
-
-        <div className="mt-6">
-          <div className="flex justify-between text-xs font-mono text-zinc-500 mb-1">
-            <span>
-              {running
-                ? activeStage < 3
-                  ? 'Ingesting…'
-                  : 'Writing to PostgreSQL…'
-                : result
-                  ? 'Done'
-                  : 'Ready'}
-            </span>
-            <span>{target ? `${fmt(persistedShown)} / ${fmt(target)}` : ''}</span>
-          </div>
-          <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-            <div
-              className="h-full rounded-full bg-emerald-500 transition-[width] duration-150"
-              style={{ width: `${target ? (persistedShown / target) * 100 : 0}%` }}
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Result: the selling point */}
-      {result && !running && (
-        <div className="px-6 sm:px-8 pb-8 animate-[fadeUp_0.6s_ease-out]">
-          <div className="rounded-xl border border-emerald-500/40 bg-emerald-500/5 p-6">
-            <div className="text-xs font-semibold tracking-[0.2em] text-emerald-400 mb-3">RESULT</div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <Metric label="Ingest throughput" value={`${fmt(result.ingest_rps)}/s`} hint={`${fmt(result.accepted)} logs in ${(result.ingest_ms / 1000).toFixed(2)}s`} />
-              <Metric label="Logs lost" value={fmt(result.target - result.persisted)} hint={`${fmt(result.persisted)} of ${fmt(result.target)} stored`} />
-              <Metric label="DB round trips" value={fmt(result.batches)} hint={`~${dbCallsSaved}× fewer than one insert per log`} />
-              <Metric label="Backpressure hits" value={fmt(result.backpressure)} hint={result.backpressure ? 'queue filled, clients retried' : 'queue never filled'} />
-            </div>
-            {result.error && <p className="mt-4 text-sm text-amber-300">{result.error}</p>}
-            <p className="mt-4 text-xs text-zinc-500">
-              Numbers are measured by the backend during this run (end-to-end, including the database).
-              The animation is paced for visibility; it never shows more than was really processed.
-            </p>
-          </div>
-
-          <h3 className="mt-8 mb-3 text-sm font-semibold tracking-widest text-zinc-400">WHERE YOU WOULD USE THIS</h3>
-          <div className="grid md:grid-cols-2 gap-3">
-            {USE_CASES.map(([t, d]) => (
-              <div key={t} className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-4">
-                <div className="text-sm font-semibold text-white">{t}</div>
-                <div className="text-sm text-zinc-400 mt-1">{d}</div>
-              </div>
-            ))}
-          </div>
-          <p className="mt-4 text-sm text-zinc-400">
-            Scroll down: the dashboard below now shows those logs, filterable by level and paginated.
-          </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
-function Metric({ label, value, hint }) {
-  return (
-    <div>
-      <div className="text-xs text-zinc-400">{label}</div>
-      <div className="text-2xl sm:text-3xl font-light text-white font-mono">{value}</div>
-      <div className="text-xs text-zinc-500 mt-1">{hint}</div>
+      {/* Right: the pipeline stage */}
+      <section className="rounded-3xl bg-[var(--stage)] p-5 sm:p-8 border border-[var(--stage-line)] overflow-hidden lg:sticky lg:top-4">
+        <Pipeline
+          phase={phase === 'done' ? 'done' : phase}
+          sent={phase === 'done' ? result.accepted : sentShown}
+          inFlight={phase === 'done' ? 0 : inFlight}
+          queueCap={queueCap}
+          batches={phase === 'done' ? result.batches : batchesShown}
+          persisted={phase === 'done' ? result.persisted : persistedShown}
+          target={target}
+        />
+        <p className="mt-3 text-xs text-[#7fa7b2] max-w-[60ch]">
+          Counts come from the server. The animation is slowed so you can follow it, and it never shows more than was processed.
+        </p>
+      </section>
     </div>
   );
 }
 
-// Renders a step followed by an animated arrow (horizontal on desktop).
-function FragmentWithArrow({ children, showArrow, flowing }) {
+function Metric({ label, value, note }) {
   return (
-    <>
-      {children}
-      {showArrow && (
-        <div className="hidden md:flex items-center justify-center w-12" aria-hidden="true">
-          <div className="relative h-0.5 w-full bg-zinc-800 overflow-hidden rounded">
-            {flowing && <div className="absolute inset-y-0 w-1/2 bg-emerald-400 animate-[flow_0.7s_linear_infinite]" />}
-          </div>
-        </div>
-      )}
-    </>
+    <div>
+      <dt className="text-sm text-[var(--muted)]">{label}</dt>
+      <dd className="font-display text-4xl font-semibold tracking-tight text-[var(--ink)] mt-1">{value}</dd>
+      <p className="text-[13px] leading-snug text-[var(--muted)] mt-1">{note}</p>
+    </div>
   );
 }
